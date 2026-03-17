@@ -117,6 +117,12 @@ openclaw models set provider/model-id
 
 For example: `openclaw models set anthropic/claude-sonnet-4-20250514` or `openclaw models set openai/gpt-4-turbo`. Use `openclaw models list --all` to see available models.
 
+**Q: Can I use LLM Gateway (OpenAI-compatible) with this template?**
+
+A: Yes. In `/setup`, choose **LLM Gateway** and paste your LLM Gateway API key. The wrapper configures OpenClaw using the OpenAI-compatible “custom provider” flow with base URL `https://api.llmgateway.io/v1/` and model id `auto`.
+
+Security tip: if you ever paste a real API key into a chat, issue, or log, assume it’s compromised and rotate it.
+
 **Q: How do I access configuration after the initial setup?**
 
 A: Visit `/setup` on your deployed instance at any time — it works both before and after setup. Once configured, the setup page shows your current status along with management tools: device approval, health checks (Run Doctor), data export, and a reset option. You'll need your `SETUP_PASSWORD` to access it.

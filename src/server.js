@@ -420,6 +420,14 @@ app.get("/setup/api/status", requireSetupAuth, async (_req, res) => {
 
   const authGroups = [
     {
+      value: "llmgateway",
+      label: "LLM Gateway",
+      hint: "OpenAI-compatible base URL",
+      options: [
+        { value: "llmgateway-api-key", label: "LLM Gateway API key" },
+      ],
+    },
+    {
       value: "openai",
       label: "OpenAI",
       hint: "API key",
@@ -548,26 +556,43 @@ function buildOnboardArgs(payload) {
   ];
 
   if (payload.authChoice) {
-    args.push("--auth-choice", payload.authChoice);
+    if (payload.authChoice === "llmgateway-api-key") {
+      // OpenClaw supports OpenAI-compatible endpoints via the "custom provider" flags.
+      // We pass the API key via CUSTOM_API_KEY env (set at spawn time) to avoid leaking it in argv.
+      args.push(
+        "--auth-choice",
+        "custom-api-key",
+        "--custom-compatibility",
+        "openai",
+        "--custom-provider-id",
+        "llmgateway",
+        "--custom-base-url",
+        "https://api.llmgateway.io/v1/",
+        "--custom-model-id",
+        "auto",
+      );
+    } else {
+      args.push("--auth-choice", payload.authChoice);
 
-    const secret = (payload.authSecret || "").trim();
-    const map = {
-      "openai-api-key": "--openai-api-key",
-      apiKey: "--anthropic-api-key",
-      "openrouter-api-key": "--openrouter-api-key",
-      "ai-gateway-api-key": "--ai-gateway-api-key",
-      "moonshot-api-key": "--moonshot-api-key",
-      "kimi-code-api-key": "--kimi-code-api-key",
-      "gemini-api-key": "--gemini-api-key",
-      "zai-api-key": "--zai-api-key",
-      "minimax-api": "--minimax-api-key",
-      "minimax-api-lightning": "--minimax-api-key",
-      "synthetic-api-key": "--synthetic-api-key",
-      "opencode-zen": "--opencode-zen-api-key",
-    };
-    const flag = map[payload.authChoice];
-    if (flag && secret) {
-      args.push(flag, secret);
+      const secret = (payload.authSecret || "").trim();
+      const map = {
+        "openai-api-key": "--openai-api-key",
+        apiKey: "--anthropic-api-key",
+        "openrouter-api-key": "--openrouter-api-key",
+        "ai-gateway-api-key": "--ai-gateway-api-key",
+        "moonshot-api-key": "--moonshot-api-key",
+        "kimi-code-api-key": "--kimi-code-api-key",
+        "gemini-api-key": "--gemini-api-key",
+        "zai-api-key": "--zai-api-key",
+        "minimax-api": "--minimax-api-key",
+        "minimax-api-lightning": "--minimax-api-key",
+        "synthetic-api-key": "--synthetic-api-key",
+        "opencode-zen": "--opencode-zen-api-key",
+      };
+      const flag = map[payload.authChoice];
+      if (flag && secret) {
+        args.push(flag, secret);
+      }
     }
 
   }
@@ -581,6 +606,7 @@ function runCmd(cmd, args, opts = {}) {
       ...opts,
       env: {
         ...process.env,
+        ...(opts.env || {}),
         OPENCLAW_STATE_DIR: STATE_DIR,
         OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
       },
@@ -600,6 +626,7 @@ function runCmd(cmd, args, opts = {}) {
 }
 
 const VALID_AUTH_CHOICES = [
+  "llmgateway-api-key",
   "openai-api-key",
   "apiKey",
   "gemini-api-key",
@@ -657,7 +684,14 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       return res.status(400).json({ ok: false, output: validationError });
     }
     const onboardArgs = buildOnboardArgs(payload);
-    const onboard = await runCmd(OPENCLAW_NODE, clawArgs(onboardArgs));
+    const secret = (payload.authSecret || "").trim();
+    const onboardEnv =
+      payload.authChoice === "llmgateway-api-key" && secret
+        ? { CUSTOM_API_KEY: secret }
+        : undefined;
+    const onboard = await runCmd(OPENCLAW_NODE, clawArgs(onboardArgs), {
+      env: onboardEnv,
+    });
 
     let extra = "";
     extra += `\n[setup] Onboarding exit=${onboard.code} configured=${isConfigured()}\n`;
