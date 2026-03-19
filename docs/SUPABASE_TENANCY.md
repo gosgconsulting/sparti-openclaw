@@ -72,7 +72,11 @@ The trigger must use `ON CONFLICT (workspace_id, user_id) DO UPDATE` (or `DO NOT
 
 ## Migrations in this repo
 
-Migrations are in `supabase/migrations/`. Apply them in order against the Supabase project (Dashboard SQL editor or `supabase db push` if the project is linked). Run **Migration 1** before **Migration 2**.
+Migrations are in `supabase/migrations/`. Apply in order:
+
+1. **20260317000001_fix_handle_new_workspace_idempotent.sql** — `handle_new_workspace` uses `ON CONFLICT (workspace_id, user_id) DO UPDATE` so duplicate membership inserts never fail.
+2. **20260317000002_provision_default_workspace_on_signup.sql** — Adds `get_user_default_workspace_id`, `provision_default_workspace_for_new_user`, auth trigger, unique index, backfill, and orphan fix. Requires `workspaces.slug` (NOT NULL); provision and backfill set `slug` to `ws-` + random hex.
+3. **20260317000003_fix_get_workspace_slot_info_ambiguous.sql** — Fixes ambiguous `billing_month` in `get_workspace_slot_info` (return column renamed to `result_billing_month` so `ON CONFLICT (workspace_id, billing_month)` is unambiguous). Run before or with migration 2 so that workspace_members inserts (from `handle_new_workspace`) do not trigger the ambiguity error in slot allocation.
 
 ## References
 

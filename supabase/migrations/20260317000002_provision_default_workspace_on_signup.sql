@@ -45,8 +45,8 @@ BEGIN
   END IF;
   v_name := left(v_name, 60) || ' Workspace';
 
-  INSERT INTO public.workspaces (id, name, created_by, is_active, is_default, created_at, updated_at)
-  VALUES (gen_random_uuid(), v_name, NEW.id, true, true, now(), now());
+  INSERT INTO public.workspaces (id, name, slug, created_by, is_active, is_default, created_at, updated_at)
+  VALUES (gen_random_uuid(), v_name, 'ws-' || replace(gen_random_uuid()::text, '-', ''), NEW.id, true, true, now(), now());
 
   RETURN NEW;
 END;
@@ -64,13 +64,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_default_workspace_per_user
   ON public.workspaces (created_by)
   WHERE (coalesce(is_default, false) = true);
 
--- Backfill: create default workspace for existing users who have no active membership.
-INSERT INTO public.workspaces (id, name, created_by, is_active, is_default, created_at, updated_at)
-SELECT gen_random_uuid(), left(split_part(u.email, '@', 1), 60) || ' Workspace', u.id, true, true, now(), now()
+-- Backfill: create default workspace for users who have no active membership and no default workspace.
+INSERT INTO public.workspaces (id, name, slug, created_by, is_active, is_default, created_at, updated_at)
+SELECT gen_random_uuid(), left(split_part(u.email, '@', 1), 60) || ' Workspace', 'ws-' || replace(gen_random_uuid()::text, '-', ''), u.id, true, true, now(), now()
 FROM auth.users u
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.workspace_members wm
-  WHERE wm.user_id = u.id AND wm.status = 'active'
+  SELECT 1 FROM public.workspace_members wm WHERE wm.user_id = u.id AND wm.status = 'active'
+)
+AND NOT EXISTS (
+  SELECT 1 FROM public.workspaces w WHERE w.created_by = u.id AND coalesce(w.is_default, false) = true
 );
 
 -- Backfill relies on handle_new_workspace to add membership. If we inserted workspaces above,
